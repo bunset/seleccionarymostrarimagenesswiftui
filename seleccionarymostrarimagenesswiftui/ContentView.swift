@@ -2,26 +2,18 @@ import SwiftUI
 import PhotosUI
 
 struct ContentView: View {
-    // Estado para almacenar las imágenes seleccionadas
-    @State private var images: [UIImage] = []
+    // Estado para almacenar los nombres de archivo de las imágenes seleccionadas
+    @State private var imageFileNames: [String] = []
     // Estado para controlar la presentación del selector de imágenes
     @State private var isShowingImagePicker = false
     
     var body: some View {
         VStack {
-            // Verificar si hay imágenes seleccionadas
-            if !images.isEmpty {
-                // Mostrar un ScrollView si hay imágenes
-                ScrollView {
-                    // Mostrar las imágenes en un LazyVGrid para un desplazamiento eficiente
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                        ForEach(images, id: \.self) { image in
-                            // Mostrar cada imagen en una vista Image, escalable y ajustable
-                            Image(uiImage: image)
-                                .resizable()
-                                .scaledToFit()
-                        }
-                    }
+            // Verificar si hay nombres de archivo de imágenes seleccionadas
+            if !imageFileNames.isEmpty {
+                // Mostrar una lista con los nombres de archivo
+                List(imageFileNames, id: \.self) { fileName in
+                    Text(fileName)
                 }
             } else {
                 // Mostrar un mensaje si no hay imágenes seleccionadas
@@ -42,7 +34,7 @@ struct ContentView: View {
         }
         .sheet(isPresented: $isShowingImagePicker) {
             // Presentar el selector de imágenes en un sheet
-            ImagePicker(images: $images)
+            ImagePicker(imageFileNames: $imageFileNames)
         }
         .padding()
     }
@@ -50,8 +42,8 @@ struct ContentView: View {
 
 // Representación de un controlador de vista de selección de imágenes
 struct ImagePicker: UIViewControllerRepresentable {
-    // Enlace para almacenar las imágenes seleccionadas
-    @Binding var images: [UIImage]
+    // Enlace para almacenar los nombres de archivo de las imágenes seleccionadas
+    @Binding var imageFileNames: [String]
     
     // Método para crear el coordinador
     func makeCoordinator() -> Coordinator {
@@ -89,18 +81,18 @@ struct ImagePicker: UIViewControllerRepresentable {
             
             // Iterar sobre los resultados de la selección
             for result in results {
-                // Verificar si se puede cargar una imagen
-                if result.itemProvider.canLoadObject(ofClass: UIImage.self) {
-                    // Cargar la imagen
-                    result.itemProvider.loadObject(ofClass: UIImage.self) { (image, error) in
-                        // Verificar si se pudo cargar la imagen
-                        if let image = image as? UIImage {
-                            // Actualizar el estado de las imágenes en el hilo principal
-                            DispatchQueue.main.async {
-                                self.parent.images.append(image)
-                            }
-                        }
-                    }
+                // Obtener el nombre de archivo de la imagen seleccionada
+                var fileName = "Imagen sin nombre"
+                
+                if let assetIdentifier = result.assetIdentifier {
+                    fileName = assetIdentifier
+                } else if let fileNameFromURL = result.itemProvider.suggestedName {
+                    fileName = fileNameFromURL
+                }
+                
+                // Actualizar el estado de los nombres de archivo en el hilo principal
+                DispatchQueue.main.async {
+                    self.parent.imageFileNames.append(fileName)
                 }
             }
         }
@@ -113,3 +105,4 @@ struct ContentView_Previews: PreviewProvider {
         ContentView()
     }
 }
+
