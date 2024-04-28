@@ -61,7 +61,6 @@ struct ContentView: View {
     
     // Función para crear y compartir el PDF
     private func createAndSharePDF() {
-        print ("hola")
         let pdfDocument = PDFDocument()
         
         // Tamaño fijo para las imágenes en el PDF
@@ -104,12 +103,15 @@ struct ContentView: View {
                     try FileManager.default.moveItem(at: pdfURL, to: renamedPDFURL)
                     
                     // Crear una instancia de la actividad de compartir
+                    print("antes de crear la instancia de actividad de compartir")
                     let activityViewController = UIActivityViewController(activityItems: [renamedPDFURL], applicationActivities: nil)
-                    
+                    print("despues de crear la instancia de actividad de compartir")
                     // Presentar la actividad de compartir
+                    print("antes del if de compartir")
                     if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
                        let window = windowScene.windows.first {
                         window.rootViewController?.present(activityViewController, animated: true, completion: nil)
+                        print("dentro del if de compartir")
                     }
                 } catch {
                     print("Error al renombrar el archivo PDF: \(error.localizedDescription)")
@@ -124,7 +126,9 @@ struct ContentView: View {
         }
         
         // Eliminar archivos PDF antiguos
+        print("entro a borrar archivos antiguos")
         deleteOldPDFs(in: temporaryDirectoryURL)
+        print("salgo de borrar archivos antiguos")
 
         
     }
