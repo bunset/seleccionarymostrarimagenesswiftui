@@ -1,25 +1,57 @@
 import SwiftUI
 import PDFKit
+import Photos
+
+// Estructura que envuelve UIImage y hace que sea identificable
+struct ImageItem: Identifiable {
+    let id = UUID()
+    let image: UIImage
+}
 
 struct ContentView: View {
     // Estado para almacenar las imágenes seleccionadas
     @State private var selectedImages: [(UIImage, String)] = []
     // Estado para controlar la presentación del selector de imágenes
     @State private var isShowingImagePicker = false
-    
+    @State private var selectedImageToShow: ImageItem? // Cambiar el tipo a ImageItem
+
     var body: some View {
         VStack {
-            // si hay imágenes seleccionadas
+            // Si hay imágenes seleccionadas
             if !selectedImages.isEmpty {
                 // Muestra una lista con nombres de archivo y miniaturas de imágenes
                 List(selectedImages.indices, id: \.self) { index in
-                    let (image, fileName) = selectedImages[index]
+                    let (_, fileName) = selectedImages[index]
+                    let thumbnailSize = calculateThumbnailSize(for: selectedImages[index].0) // Usar la imagen en lugar de 'image'
+
                     HStack {
-                        Image(uiImage: image)
-                            .resizable()
-                            .frame(width: 50, height: 50)
-                            .cornerRadius(5)
+                        // Miniatura de la imagen como botón para mostrar en pantalla completa
+                        Button(action: {
+                            selectedImageToShow = ImageItem(image: selectedImages[index].0)
+                        }) {
+                            Image(uiImage: selectedImages[index].0)
+                                .resizable()
+                                .frame(width: thumbnailSize.width, height: thumbnailSize.height) // Usar tamaño calculado
+                                .cornerRadius(5)
+                        }
+
+
+                        
+                        // Texto descriptivo
                         Text(fileName)
+                        
+                        // Empujar el botón eliminar hacia la derecha
+                        Spacer()
+                        
+                        // Botón de eliminar imagen
+                        Button(action: {
+                            // Eliminar la imagen seleccionada del arreglo
+                            selectedImages.remove(at: index)
+                        }) {
+                            Image(systemName: "trash")
+                                .foregroundColor(.white)
+                        }
+                        .buttonStyle(BorderlessButtonStyle()) // Evitar el resaltado de estilo de botón por defecto
                     }
                 }
                 .padding(.bottom) // Añadir espacio en la parte inferior de la lista
@@ -29,7 +61,7 @@ struct ContentView: View {
             Button(action: {
                 isShowingImagePicker.toggle()
             }) {
-                Text("Seleccionar imágenes")
+                Text("Añadir imágenes")
                     .padding()
                     .foregroundColor(.white)
                     .background(Color.blue)
@@ -40,6 +72,40 @@ struct ContentView: View {
             // Presentar el selector de imágenes en un sheet
             ImagePicker(selectedImages: $selectedImages)
         }
+        .fullScreenCover(item: $selectedImageToShow) { selectedItem in
+            let image = selectedItem.image
+            // Vista de pantalla completa para mostrar la imagen seleccionada en detalle
+            VStack {
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        selectedImageToShow = nil // Cerrar la vista de pantalla completa al tocar el botón de "Cerrar"
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title)
+                            .foregroundColor(.white)
+                            .padding()
+                    }
+                    .padding(.top, UIApplication.shared.connectedScenes
+                                            .compactMap { $0 as? UIWindowScene }
+                                            .first?.windows
+                                            .first?.windowScene?.statusBarManager?.statusBarFrame.height ?? 0)
+                    .padding(.trailing) // Ajustar el espaciado del botón desde el borde derecho
+                }
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .padding()
+                Spacer()
+            }
+            .edgesIgnoringSafeArea(.all)
+            .background(Color.black)
+            .navigationBarHidden(true)
+        }
+
+
+
+
         .padding(.bottom)
         
         
@@ -54,10 +120,22 @@ struct ContentView: View {
                 .cornerRadius(10)
         }
         .padding(.top) // Añadir espacio en la parte superior del botón
-        
-
-        
     }
+
+ 
+    
+    // Función para calcular el tamaño de la miniatura manteniendo la relación de aspecto
+    private func calculateThumbnailSize(for image: UIImage) -> CGSize {
+        let maxWidth: CGFloat = 50 // Ancho máximo de la miniatura
+        
+        // Calcular el tamaño basado en la relación de aspecto original de la imagen
+        let aspectRatio = image.size.width / image.size.height
+        let thumbnailWidth = min(maxWidth, image.size.width) // Limitar el ancho máximo
+        let thumbnailHeight = thumbnailWidth / aspectRatio
+        
+        return CGSize(width: thumbnailWidth, height: thumbnailHeight)
+    }
+    
     
     // Función para crear y compartir el PDF
     private func createAndSharePDF() {
@@ -153,6 +231,10 @@ struct ContentView: View {
 
 
     
+
+
+
+    
     // Función para eliminar archivos PDF antiguos en la carpeta especificada
     private func deleteOldPDFs(in directoryURL: URL) {
         let fileManager = FileManager.default
@@ -214,18 +296,47 @@ struct ImagePicker: UIViewControllerRepresentable {
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
             // Obtener la imagen seleccionada
             if let image = info[.originalImage] as? UIImage {
-                // Obtener el nombre de archivo de la imagen
-                let fileName = "Imagen seleccionada"
+                // Obtener el identificador local del PHAsset asociado con la imagen
+                guard let assetIdentifier = info[.phAsset] as? PHAsset else {
+                    // Si no se puede obtener el PHAsset, usar un nombre predeterminado
+                    let fileName = "Imagen seleccionada"
+                    DispatchQueue.main.async {
+                        self.parent.selectedImages.append((image, fileName))
+                    }
+                    picker.dismiss(animated: true)
+                    return
+                }
                 
-                // Actualizar el estado de las imágenes en el hilo principal
-                DispatchQueue.main.async {
-                    self.parent.selectedImages.append((image, fileName))
+                // Intentar obtener el nombre de archivo directamente del recurso de PHAsset
+                if let resource = PHAssetResource.assetResources(for: assetIdentifier).first {
+                    // Aquí obtenemos el nombre de archivo correspondiente a la imagen seleccionada
+                    let fileName = resource.originalFilename
+                    DispatchQueue.main.async {
+                        self.parent.selectedImages.append((image, fileName))
+                    }
+                } else {
+                    // Si no se puede obtener el nombre de archivo, usar un nombre predeterminado
+                    let fileName = "Imagen seleccionada"
+                    DispatchQueue.main.async {
+                        self.parent.selectedImages.append((image, fileName))
+                    }
                 }
             }
             
             // Cerrar el selector de imágenes
             picker.dismiss(animated: true)
         }
+
+
+
+
+
+
+
+
+
+
+
         
         // Método llamado cuando se cancela la selección
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
