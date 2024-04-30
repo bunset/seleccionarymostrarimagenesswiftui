@@ -283,7 +283,7 @@ struct ImagePicker: UIViewControllerRepresentable {
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
     }
-    
+     
     // Coordinador para manejar los eventos del selector de imágenes
     class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
         let parent: ImagePicker
